@@ -4,6 +4,13 @@
 
 #from __future__ import print_function
 
+__author__      = "Adam Howard"
+__copyright__   = "Copyright 2016, University of Tennessee"
+__credits__     = ["Adam Howard", "Ben Olson"]
+__license__     = "BSD 3-Clause"
+__version__     = "0.1.0"
+__email__       = "ahowar31@vols.utk.edu"
+
 import argparse
 import datetime
 import glob
@@ -14,14 +21,8 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import threading
 import time
-
-__author__      = "Adam Howard"
-__copyright__   = "Copyright 2016, University of Tennessee"
-__credits__     = ["Adam Howard", "Ben Olson"]
-__license__     = "BSD 3-Clause"
-__version__     = "0.1.0"
-__email__       = "ahowar31@vols.utk.edu"
 
 # Python 2/3 Support
 if sys.version_info[0] == 2:
@@ -136,7 +137,20 @@ def grade_submission(info, gspath, compcmds, problems=None, gatimeout=600, gstim
     If problems is provided that subset of gradescripts will be run, otherwise,
     gradeall will be executed.
     """
-   
+    def run_timed_subprocess(cmd, timeout):
+        """Run `cmd` as a subprocess for `timeout` seconds
+        Returns the subprocess's stdout and stderr as a tuple
+        """
+        def attempt_to_kill(proc):
+            try: proc.kill()
+            except: pass
+        proc = subprocess.Popen(cmd, shell=True, universal_newlines=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        timer = threading.Timer(timeout, attempt_to_kill, [proc])
+        out, err = proc.communicate()
+        timer.cancel()
+        return out, err
+
     # Attempt all compilation commands
     logmsg("Compiling {}'s submission".format(info.name))
     for cmd in compcmds:
@@ -144,36 +158,16 @@ def grade_submission(info, gspath, compcmds, problems=None, gatimeout=600, gstim
         if rval != 0:
             info.notes.append("Compilation Failed: {}".format(cmd))
 
-    def poll_until_timeout(proc, timeout):
-        """Waits on `proc` for a max of `timeout` seconds
-        Returns True if the timeout was reached.
-        """
-        for i in range(timeout):
-            if proc.poll() != None:
-                return False
-            time.sleep(1)
-        return True
-
     # Run the Gradescripts
     logmsg("Grading {}'s submission".format(info.name))
     buf = str()
     if not problems:
         gscript = os.path.join(gspath, "gradeall")
-        proc = subprocess.Popen(gscript, shell=True, universal_newlines=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if poll_until_timeout(proc, gatimeout):
-            info.notes.append("Gradeall Timed Out")
-            proc.kill()
-        buf += proc.communicate()[0]
+        buf += run_timed_subprocess(gscript, gatimeout)[0]
     else:
         for prob in problems:
             gscript = "{} {}".format(os.path.join(gspath, "gradescript"), prob)
-            proc = subprocess.Popen(gscript, shell=True, universal_newlines=True, 
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            if poll_until_timeout(proc, gstimeout):
-                info.notes.append("Gradescript {} Timed Out".format(prob))
-                proc.kill()
-            buf += proc.communicate()[0]
+            buf += run_timed_subprocess(gscript, gstimeout)[0]
 
     # Count up the number of correct gradescripts
     info.gspts = len(re.findall(r'Problem \d+ is correct\.', buf))
@@ -217,6 +211,7 @@ def grade_all():
         shutil.rmtree("tmp")
     os.mkdir("tmp")
     for fname in args.commonfiles:
+        logmsg("Copying common file: {}".format(fname))
         shutil.copy(os.path.join(args.labpath,fname), "tmp")
     os.chdir("tmp")
 
@@ -231,8 +226,8 @@ def grade_all():
         grade_submission(si, args.labpath, args.compcmds, args.probset)
         
         # Clean out everything but helper files
-        for jnk in glob.glob("./*"):
-            if jnk not in args.sourcefiles:
+        for jnk in glob.glob("*"):
+            if jnk not in args.commonfiles:
                 os.remove(jnk)
     
     # Leave the temporary directory
