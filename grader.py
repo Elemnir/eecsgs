@@ -143,7 +143,7 @@ def grade_submission(info, gspath, compcmds, problems=None, gatimeout=600, gstim
         """
         def attempt_to_kill(proc):
             try: proc.kill()
-            except: pass
+            except Exception: pass
         proc = subprocess.Popen(cmd, shell=True, universal_newlines=True,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         timer = threading.Timer(timeout, attempt_to_kill, [proc])
@@ -154,9 +154,10 @@ def grade_submission(info, gspath, compcmds, problems=None, gatimeout=600, gstim
     # Attempt all compilation commands
     logmsg("Compiling {}'s submission".format(info.name))
     for cmd in compcmds:
-        rval = subprocess.call(cmd, shell=True)
-        if rval != 0:
+        out, err = run_timed_subprocess(cmd, 120)
+        if (out and "error" in out) or (err and "error" in err):
             info.notes.append("Compilation Failed: {}".format(cmd))
+            logmsg("Compilation Failed: {}".format(cmd))
 
     # Run the Gradescripts
     logmsg("Grading {}'s submission".format(info.name))
