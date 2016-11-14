@@ -18,10 +18,10 @@ import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
-import threading
 import time
 
 # Python 2/3 Support
@@ -52,7 +52,9 @@ class SubInfo(object):
 def logmsg(msg):
     """Logs `msg` to a file and stdout"""
     logging.info(msg)
-    print(msg)
+    sys.stdout.write(msg+'\n')
+
+logging.basicConfig(filename='grades.log', filemode='w', level=logging.INFO)
 
 
 def parse_args():
@@ -103,7 +105,17 @@ def parse_args():
         type=argparse.FileType('w'),
         help='Write the final report to FILE, defaults to stdout'
     )
-
+    
+    parser.add_argument('--gatimeout', metavar='SECONDS',
+        default=240, type=int,
+        help='Number of seconds to allow Gradeall to run, has no effect when using --probset'
+    )
+    
+    parser.add_argument('--gstimeout', metavar='SECONDS',
+        default=30, type=int,
+        help='Number of seconds to allow each gradescript to run, only works with --probset'
+    )
+    
     return parser.parse_args()
 
 
@@ -120,7 +132,7 @@ def extract_sources(tarname, sourcefiles):
         try:
             tar.extract(name)
         except KeyError as ke:
-            print(ke)
+            sys.stdout.write(repr(ke)+'\n')
             tar.list(verbose=False)
             wrongname = input("> ")
             tar.extract(wrongname)
@@ -129,7 +141,7 @@ def extract_sources(tarname, sourcefiles):
     return SubInfo(stu, sdir, datetime.datetime.fromtimestamp(int(sub)))
 
 
-def grade_submission(info, gspath, compcmds, problems=None, gatimeout=600, gstimeout=120):
+def grade_submission(info, gspath, compcmds, problems=None, gatimeout=240, gstimeout=30):
     """Attempts to compile and then run gradescripts for the given SubInfo.
     
     Records the number correct and also notes compilation failure in `info`.
@@ -141,14 +153,18 @@ def grade_submission(info, gspath, compcmds, problems=None, gatimeout=600, gstim
         """Run `cmd` as a subprocess for `timeout` seconds
         Returns the subprocess's stdout and stderr as a tuple
         """
-        def attempt_to_kill(proc):
-            try: proc.kill()
-            except Exception: pass
         proc = subprocess.Popen(cmd, shell=True, universal_newlines=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        timer = threading.Timer(timeout, attempt_to_kill, [proc])
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                preexec_fn=os.setsid)
+        for i in range(timeout):
+            if proc.poll() != None:
+                break
+            time.sleep(1)
+        else:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            logmsg("Gradescript Timeout: {}".format(cmd))
+        
         out, err = proc.communicate()
-        timer.cancel()
         return out, err
 
     # Attempt all compilation commands
@@ -162,6 +178,7 @@ def grade_submission(info, gspath, compcmds, problems=None, gatimeout=600, gstim
     # Run the Gradescripts
     logmsg("Grading {}'s submission".format(info.name))
     buf = str()
+    info.gspts = 0
     if not problems:
         gscript = os.path.join(gspath, "gradeall")
         buf += run_timed_subprocess(gscript, gatimeout)[0]
@@ -180,24 +197,21 @@ def view_submission(info):
     inspect them. Provides notes and grade information for the student, then
     allows the grader to provide a style point score and notes.
     """
-    print(info)
+    sys.stdout.write(repr(info)+'\n')
     input("<Press Enter to view files>")
     for fname in glob.glob("{}/*".format(info.path)):
         subprocess.call("less {}".format(fname), shell=True)
     info.stpts = input("Style Points: ")
     notes = input("Notes: ")
-    if notes:
+    while notes != "":
         info.notes.append(notes)
+        notes = input("Notes: ")
 
 
-def grade_all():
+def grade_all(args):
     """Grades all tarballs of the form <lab>.<class>.<netid>.<subtime>.tgz 
     in the current directory.
     """
-    logging.basicConfig(filename='grades.log', filemode='w', level=logging.INFO)
-    
-    # Parse arguments
-    args = parse_args()
     
     # Extract all tarballs and collect submission info
     logmsg("Extracting submission files...")
@@ -205,6 +219,7 @@ def grade_all():
     for tarball in glob.glob("*.tgz"):
         si = extract_sources(tarball, args.sourcefiles)
         subs.append(si)
+    subs.sort()
     logmsg("Found {} submissions.".format(len(subs)))
 
     # Create the working directory and copy in common files
@@ -224,12 +239,16 @@ def grade_all():
             shutil.copy(src, ".")
  
         # Compile and run the gradescripts
-        grade_submission(si, args.labpath, args.compcmds, args.probset)
+        grade_submission(si, args.labpath, args.compcmds, args.probset,
+                         args.gatimeout, args.gstimeout)
         
         # Clean out everything but helper files
         for jnk in glob.glob("*"):
             if jnk not in args.commonfiles:
-                os.remove(jnk)
+                if os.path.isdir(jnk):
+                    shutil.rmtree(jnk)
+                else:
+                    os.remove(jnk)
     
     # Leave the temporary directory
     os.chdir("..")
@@ -249,9 +268,10 @@ def grade_all():
     logmsg("Writing Report...")
     args.reportfile.write("\n{:8} {:>5} {:>5} {}\n".format(
         "Netid", "#GSs", "Style", "Notes"))
-    for si in sorted(subs):
+    for si in subs:
         args.reportfile.write(repr(si))
 
 
 if __name__ == "__main__":
-    grade_all()
+    args = parse_args()
+    grade_all(args)
