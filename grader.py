@@ -155,7 +155,7 @@ def grade_submission(info, gspath, compcmds, problems=None, gatimeout=240, gstim
         """
         proc = subprocess.Popen(cmd, shell=True, universal_newlines=True,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                preexec_fn=os.setsid)
+                                preexec_fn=os.setsid, close_fds=True)
         for i in range(timeout):
             if proc.poll() != None:
                 break
@@ -178,7 +178,6 @@ def grade_submission(info, gspath, compcmds, problems=None, gatimeout=240, gstim
     # Run the Gradescripts
     logmsg("Grading {}'s submission".format(info.name))
     buf = str()
-    info.gspts = 0
     if not problems:
         gscript = os.path.join(gspath, "gradeall")
         buf += run_timed_subprocess(gscript, gatimeout)[0]
