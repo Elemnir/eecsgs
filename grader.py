@@ -134,9 +134,10 @@ def extract_sources(tarname, sourcefiles):
         except KeyError as ke:
             sys.stdout.write(repr(ke)+'\n')
             tar.list(verbose=False)
-            wrongname = input("> ")
-            tar.extract(wrongname)
-            os.rename(wrongname, name)
+            wrongname = input("Enter file name or NONE> ")
+            if wrongname != "NONE":
+                tar.extract(wrongname)
+                os.rename(wrongname, name)
     
     return SubInfo(stu, sdir, datetime.datetime.fromtimestamp(int(sub)))
 
