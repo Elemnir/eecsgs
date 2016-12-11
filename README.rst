@@ -11,6 +11,9 @@ A tool for grading (creating and submitting coming soon) gradescripted programmi
     grader.py
         A library of functions that automate grading a collection of assignment submissions.
 
+    submit.py
+        (WIP) A tool for creating and submitting assignments. The `config.json.example` is an example of how to write a config for the script. The intention is that student facing submit scripts will be written which invoke `submit.py` with an appropriate config for the course.
+
 ----------
  Examples
 ----------

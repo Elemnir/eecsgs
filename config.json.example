@@ -1,0 +1,15 @@
+{
+    "course" : "140",
+    "assignments" : ["lab0", "lab05", "lab1", "lab2", "lab3", "lab4", "lab5a", 
+                     "lab5b", "lab6", "lab7", "lab8a", "lab8b", "lab9", "labA"],
+    "sections" : {
+        "1" : {
+            "desc"  : "8:10-10:10 W",
+            "ta"    : "ahowar31"
+        },
+        "2" : {
+            "desc"  : "10:25-12:20 W",
+            "ta"    : "ahowar31"
+        }
+    }
+}
