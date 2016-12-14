@@ -10,10 +10,16 @@ __version__     = "0.1.0"
 __email__       = "ahowar31@vols.utk.edu"
 
 import argparse
+import datetime
+import email.mime.base
+import email.mime.multipart
+import email.mime.text
 import glob
+import hashlib
 import json
 import os
 import shutil
+import smtplib
 import sys
 import tarfile
 import textwrap
@@ -36,6 +42,7 @@ def parse_args():
 
 def submit():
     """Tar and email the current directory to the course TA."""
+    subtime = datetime.datetime.now()
     args = parse_args()
     
     # get the course's configuration
@@ -52,7 +59,7 @@ def submit():
     # Get the assignment the student is submitting
     resp = ""
     while resp not in cfg["assignments"]:
-        resp = input("Select an assignment from the list:\n\n\t" 
+        resp = input("\nSelect an assignment from the list:\n\n\t" 
                     + "\n\t".join(textwrap.wrap(", ".join(cfg["assignments"])))
                     + "\n\nAssignment: ")
     assignment = resp
@@ -61,8 +68,9 @@ def submit():
     resp = ""
     desc = "\n\t".join(["{:3}: {}".format(key, cfg["sections"][key]["desc"]) 
                         for key in cfg["sections"].keys()])
+
     while resp not in cfg["sections"].keys():
-        resp = input("Select a section number from the list:\n\n\t" 
+        resp = input("\nSelect a section number from the list:\n\n\t" 
                     + desc + "\n\nSection: ")
     section = resp
 
@@ -77,15 +85,50 @@ def submit():
         shutil.copy(f, os.path.join(submitdir, f))
 
     # Create the archive, then delete the submission directory
-    tarname = "{}.{}.{}.{}.tgz".format(assignment, cfg["course"], 
-                                       username, int(time.time()))
+    tarname = "{}.{}.{}.{}.tgz".format(
+        assignment, cfg["course"], username, int(time.time())
+    )
     with tarfile.open(tarname, mode="w:gz") as tar:
         tar.add(submitdir)
     shutil.rmtree(submitdir)
 
-    # Perform the submission
+    # Build the email headers
+    faddr = "{}@eecs.utk.edu".format(username)
+    taddr = "{}@eecs.utk.edu".format(cfg["sections"][section]["ta"])
     
+    msg = email.mime.multipart.MIMEMultipart()
+    msg["From"] = faddr
+    msg["To"] = taddr
+    msg["Subject"] = "{} submission for student {} in {}".format(
+        assignment, username, cfg["course"]
+    )
+
+    # Build the attachment and compute a check sum
+    attachment = email.mime.base.MIMEBase('application', 'octet-stream')
+    with open(tarname, 'rb') as f:
+        contents = f.read()
+        chksum = hashlib.md5(contents).hexdigest()
+        attachment.set_payload(contents)
+    
+    email.encoders.encode_base64(attachment)
+    attachment.add_header("Content-Disposition", 
+        "attachment; filename={}".format(tarname)
+    )
+    msg.attach(attachment)
+    
+    # Build and attach the message text
+    msg.attach(email.mime.text.MIMEText(
+          "Submission from {}\n".format(username)
+        + "Course: {}\n".format(cfg["course"])
+        + "Assignment: {}\n".format(assignment)
+        + "Time: {}\n".format(subtime.strftime("%m/%d/%Y %H:%M:%S"))
+        + "MD5Sum: {}\n".format(chksum),
+        "plain"))
    
+    # Send the email
+    server = smtplib.SMTP('localhost')
+    server.sendmail(faddr, [taddr], msg.as_string())
+    server.quit()
 
 if __name__ == "__main__":
     submit()
