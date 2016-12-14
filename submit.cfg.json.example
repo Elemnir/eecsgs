@@ -5,11 +5,11 @@
     "sections" : {
         "1" : {
             "desc"  : "8:10-10:10 W",
-            "ta"    : "ahowar31"
+            "ta"    : "tanetid"
         },
         "2" : {
             "desc"  : "10:25-12:20 W",
-            "ta"    : "ahowar31"
+            "ta"    : "tanetid"
         }
     }
 }

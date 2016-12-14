@@ -129,6 +129,10 @@ def submit():
     server = smtplib.SMTP('localhost')
     server.sendmail(faddr, [taddr], msg.as_string())
     server.quit()
+    
+    #TODO: Support CCs in the sendmail
+    #TODO: Send the submitting student a receipt
+
 
 if __name__ == "__main__":
     submit()
