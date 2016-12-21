@@ -11,5 +11,6 @@
             "desc"  : "10:25-12:20 W",
             "ta"    : "tanetid"
         }
-    }
+    },
+    "domain" : "eecs.utk.edu"
 }

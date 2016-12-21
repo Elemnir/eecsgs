@@ -72,7 +72,7 @@ def submit():
     while resp not in cfg["sections"].keys():
         resp = input("\nSelect a section number from the list:\n\n\t" 
                     + desc + "\n\nSection: ")
-    section = resp
+    section = cfg["sections"][resp]
 
     # Collect the username and list of files to tar
     username = os.environ.get("USER")
@@ -92,13 +92,26 @@ def submit():
         tar.add(submitdir)
     shutil.rmtree(submitdir)
 
-    # Build the email headers
-    faddr = "{}@eecs.utk.edu".format(username)
-    taddr = "{}@eecs.utk.edu".format(cfg["sections"][section]["ta"])
+    # Build the email addresses
+    domain = cfg["domain"]
+    faddr = "{}@{}".format(username, domain)
+    taddr = "{}@{}".format(section["ta"], domain)
     
+    if "cc" in section:
+        ccaddrs = ["{}@{}".format(netid, domain) for netid in section["cc"]]
+    else:
+        ccaddrs = []
+
+    if "bcc" in section:
+        bccaddrs = ["{}@{}".format(netid, domain) for netid in section["bcc"]]
+    else:
+        bccaddrs = []
+
+    # Build the email headers
     msg = email.mime.multipart.MIMEMultipart()
     msg["From"] = faddr
     msg["To"] = taddr
+    msg["Cc"] = ", ".join(ccaddrs)
     msg["Subject"] = "{} submission for student {} in {}".format(
         assignment, username, cfg["course"]
     )
@@ -127,12 +140,9 @@ def submit():
    
     # Send the email
     server = smtplib.SMTP('localhost')
-    server.sendmail(faddr, [taddr], msg.as_string())
+    server.sendmail(faddr, [taddr] + ccaddrs + bccaddrs, msg.as_string())
     server.quit()
     
-    #TODO: Support CCs in the sendmail
-    #TODO: Send the submitting student a receipt
-
 
 if __name__ == "__main__":
     submit()

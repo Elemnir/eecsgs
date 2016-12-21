@@ -2,17 +2,17 @@
  EECS GS
 =========
 
-A tool for grading and submitting (creating coming soon) gradescripted programming assignments for the UTK EECS department.
+Tools for grading and submitting (creating coming soon) gradescripted programming assignments for the UTK EECS department.
 
 ------------
  Components
 ------------
 
     grader.py
-        A library of functions that automate grading a collection of assignment submissions.
+        A tool that automates grading a collection of assignment submissions. Compatible with ``submit.py`` as well as the department submit script submissions.
 
     submit.py
-        A tool for submitting assignments. The ``submit.config.json.example`` is an example of how to write a config for the script. The intention is that a student facing submit script will be written which invokes ``submit.py`` with an appropriate config for the course.
+        A tool for submitting assignments. The ``submit.cfg.json.example`` is an example of how to write a config for the script. The intention is that a student facing submit script will be written which invokes ``submit.py`` with an appropriate config for the course.
 
 ----------
  Examples
