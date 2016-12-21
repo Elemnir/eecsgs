@@ -32,3 +32,5 @@ Submitting the current directory using the raw submit script:
 ::
 
     $> python submit.py submit.config.json.example
+
+All Python scripts in this package use the ``argparse`` module, so you can use the ``-h`` or ``--help`` options for these scripts to see full options and documentation. 
